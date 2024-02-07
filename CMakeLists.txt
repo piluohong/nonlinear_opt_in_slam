@@ -11,12 +11,17 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  livox_ros_driver2
+  cv_bridge
+  tf
 )
 
 find_package(Eigen3 REQUIRED)
 find_package(g2o REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(OpenCV 4 REQUIRED)
+find_package(PCL 1.10.0 REQUIRED)
 
 
 # message(STATUS ${EIGEN3_VERSION})
@@ -113,7 +118,7 @@ find_package(Ceres REQUIRED)
 catkin_package(
  INCLUDE_DIRS include
  #LIBRARIES ls_slam
- CATKIN_DEPENDS roscpp rospy std_msgs
+ CATKIN_DEPENDS roscpp rospy std_msgs livox_ros_driver2 cv_bridge  tf
  #DEPENDS system_lib
 )
 
@@ -126,7 +131,9 @@ catkin_package(
 include_directories(
   include
   include/ls_slam
-  ${catkin_INCLUDE_DIRS}  
+  ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}  
 )
 
 set(G2O_LIBS g2o_cli g2o_ext_freeglut_minimal g2o_simulator g2o_solver_slam2d_linear
@@ -153,9 +160,9 @@ g2o_types_data g2o_types_sim3  g2o_solver_cholmod cxsparse )
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/ls_slam_node.cpp)
 
-add_executable(ls_slam src/main_ceres.cpp src/readfile.cpp src/gaussian_newton.cpp)
+add_executable(ls_slam src/mid360_image.cpp) #src/readfile.cpp src/gaussian_newton.cpp)
 target_link_libraries(ls_slam ${catkin_LIBRARIES} ${CSPARSE_LIBRARY} ${OpenMP_CXX_FLAGS}
-${G2O_LIBS} ${CERES_LIBRARIES})
+${G2O_LIBS} ${CERES_LIBRARIES} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES})
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

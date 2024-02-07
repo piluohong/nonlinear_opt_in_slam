@@ -4,10 +4,11 @@
  * @LastEditors: piluohong 1912694135@qq.com
  * @LastEditTime: 2024-01-29 17:49:49
  * @FilePath: /slam/hhh_ws/src/ls_slam/src/main_ceres.cpp
- * @Description:Ceres 用于slam
+ * @Description:Ceres 用于2dslam
  */
 
 #include <iostream>
+#include <cmath>
 #include <ros/ros.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -15,9 +16,10 @@
 
 #include <ceres/ceres.h>
 #include <Eigen/Dense>
+// #include <Eigen/Geometry>
 
 using namespace Eigen;
-// using namespace ceres;
+using namespace std;
 
 void Publish_Graph_for_Visulization(ros::Publisher *pub,
                                     std::vector<Eigen::Vector3d> &Vertexs, //  存顶点向量
@@ -33,7 +35,7 @@ void Publish_Graph_for_Visulization(ros::Publisher *pub,
         m.header.frame_id = "map";                   //  参考系
         m.header.stamp = ros::Time::now();           //  时间戳
         m.id = 0;                                    //  标识
-        m.ns = "ls_slam_node";                       //  命名空间，      用于分组
+        m.ns = "ls_slam_node";                       //  命名空间, 用于分组
         m.type = visualization_msgs::Marker::SPHERE; //  形状==球形
         m.pose.position.x = 0.0;
         m.pose.position.y = 0.0;
@@ -128,27 +130,54 @@ struct point3f
     double yaw;
 };
 
+/*
+    @brief 用ceres求解非线性最小二乘问题，重点在于构建目标残差函数。残差：估计值与观测值的差值
+*/
 struct RelativePoseResidual {
+    //相对变换量，传值进入
     RelativePoseResidual(double dx, double dy,double dtheta) : dx_(dx), dy_(dy),dtheta_(dtheta) {}
 
     template <typename T>
-    bool operator()(const T* const point1, const T* const point2, T* residual) const {
+    bool operator()(const T* const pose1, const T* const pose2, T* residual) const {
+       // 提取平移分量
+        T x1 = pose1[0];
+        T y1 = pose1[1];
+        T x2 = pose2[0];
+        T y2 = pose2[1];
 
-        // T rotated_x = cos(dtheta_) * (point1[0] - point2[0]) - sin(dtheta_) * (point1[1] - point2[1]) + point2[0] + T(dx_);
-        // T rotated_y = sin(dtheta_) * (point1[0] - point2[0]) + cos(dtheta_) * (point1[1] - point2[1]) + point2[1] + T(dy_);
+        // 提取每个位姿的旋转角度（弧度）
+        T theta_1 = pose1[2];
+        T theta_2 = pose2[2];
 
-        // Calculate residuals
-        residual[0] = point1[0] - point2[0] - T(dx_);
-        residual[1] = point1[1] - point2[1] - T(dy_);
-        residual[2] = point1[2] - point2[2] - T(dtheta_);
-        
+        // 提取旋转矩阵
+        Eigen::Matrix<T, 2, 2> rotation_matrix_1;
+        rotation_matrix_1 << cos(theta_1), -sin(theta_1),
+                            sin(theta_1), cos(theta_1);
+
+        Eigen::Matrix<T, 2, 2> rotation_matrix_2;
+        rotation_matrix_2 << cos(theta_2), -sin(theta_2),
+                            sin(theta_2), cos(theta_2);
+
+        // 应用相对位姿变换
+        Eigen::Matrix<T, 2, 1> rotated_point = rotation_matrix_2 * Eigen::Matrix<T, 2, 1>(x1 - x2, y1 - y2);
+        rotated_point[0] -= T(dx_);
+        rotated_point[1] -= T(dy_);
+
+        // 计算平移残差
+        residual[0] = rotated_point[0];
+        residual[1] = rotated_point[1];
+
+        // 计算旋转残差，使用反正切函数计算两个旋转矩阵之间的夹角
+        Eigen::Matrix<T, 2, 2> theta_T = rotation_matrix_2 * rotation_matrix_1.transpose();
+        residual[2] = atan2(theta_T(1, 0), theta_T(0, 0)) - T(dtheta_);
+
         return true;
     }
 
 private:
-    const double dx_;
-    const double dy_;
-    const double dtheta_;
+    const double dx_;      // 相对平移的变化量
+    const double dy_;      // 相对平移的变化量
+    const double dtheta_;  // 相对旋转的变化量
 };
 
 int main(int argc,char **argv)
@@ -166,8 +195,8 @@ int main(int argc,char **argv)
     std::vector<Eigen::Vector3d> Vertexs;
     std::vector<Edge> Edges;
 
-    std::string vertexpath = "/home/hhh/project_hhh/temp/slam/hhh_ws/src/ls_slam/data/intel-v.dat";
-    std::string Edgepath = "/home/hhh/project_hhh/temp/slam/hhh_ws/src/ls_slam/data/intel-e.dat";
+    std::string vertexpath = "/home/hong/slam/hhh_ws/src/nonlinear_opt_in_slam/data/intel-v.dat";
+    std::string Edgepath = "/home/hong/slam/hhh_ws/src/nonlinear_opt_in_slam/data/intel-e.dat";
 
     ReadVertexInformation(vertexpath,Vertexs);
     ReadEdgesInformation(Edgepath,Edges);
@@ -179,6 +208,7 @@ int main(int argc,char **argv)
     auto vex_0 = Vertexs[5];
     auto vex_1 = Vertexs[6];
     auto vex_2 = Vertexs[7];
+
     auto edge_7_6 = Edges[7];
     auto edge_7_5 = Edges[8];
    
@@ -211,17 +241,16 @@ int main(int argc,char **argv)
                             (residual_76), nullptr, pose_cur, pose_last_1);
 
     ceres::Solver::Options options;
-    options.max_num_iterations = 100;         // 设置最大迭代次数
+    options.max_num_iterations = 100;         
     options.function_tolerance = 1e-6;        // 设置函数值容差
-    options.gradient_tolerance = 1e-6                                                                   ;        // 设置梯度容差
+    options.gradient_tolerance = 1e-6;        // 设置梯度
     options.parameter_tolerance = 1e-8;       // 设置参数容差
-    options.linear_solver_type = ceres::DENSE_QR;
+    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
     options.minimizer_progress_to_stdout = true;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    // 输出优化后的结果
     std::cout << "Optimized current pose: [" << pose_cur[0] << ", " << pose_cur[1] << " " << pose_cur[2] << "]" << std::endl;
     std::cout << "Optimized node5 pose: [" << pose_last_0[0] << ", " << pose_last_0[1] << " " << pose_last_0[2] << "]" << std::endl;
     std::cout << "Optimized node6 pose: [" << pose_last_1[0] << ", " << pose_last_1[1] << " " << pose_last_0[2] << "]" << std::endl;
