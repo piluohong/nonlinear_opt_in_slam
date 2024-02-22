@@ -49,6 +49,8 @@ std::mutex mtx_lidar;
 deque<livox_ros_driver2::CustomMsgConstPtr> vec_;
 deque<pcl::PointCloud<PointType>> cloudQueue;
 deque<double> timeQueue;
+double laser_time;
+
 
 pcl::PointCloud<PointType>::Ptr depthCloud (new pcl::PointCloud<PointType>());
 
@@ -105,57 +107,62 @@ void getColor(float p, float np, float&r, float&g, float&b)
 
 void ImageCallback(const sensor_msgs::ImageConstPtr &image_msg)
 {
-    
-    ros::Time cur_image_time = image_msg->header.stamp;
-
-    cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
-
-    cv::Mat cv_image, circle_image;
-    cv_image = cv_ptr->image;
-
-    double scale_factor = 0.5;
-    cv::Size new_size(static_cast<int>(cv_image.cols * scale_factor), static_cast<int>(cv_image.rows * scale_factor));
-    cv::Mat scaled_image;
-    cv::resize(cv_image, scaled_image, new_size);
-
-    circle_image = scaled_image.clone();
-
+    double cur_laser_time;
     mtx_lidar.lock();
     copy_depthCloud = depthCloud;
+    cur_laser_time = laser_time;
     mtx_lidar.unlock();
+    
+    ros::Time cur_image_time = image_msg->header.stamp;
+    double cur_time = cur_image_time.toSec();
 
+    if (abs(cur_time - cur_laser_time) > 0.1)
+        return;
+
+    cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+    cv::Mat cv_image;
+    cv_image = cv_ptr->image;
+    cv::Mat circle_image(1024, 1280, CV_8UC3, cv::Scalar(255,255,255));
+
+    circle_image = cv_image.clone();
+    //原始图像缩放0.5倍
+    // double scale_factor = 0.5;
+    // cv::Size new_size(static_cast<int>(cv_image.cols * scale_factor), static_cast<int>(cv_image.rows * scale_factor));
+    // cv::Mat scaled_image;
+    // cv::resize(cv_image, scaled_image, new_size);
+    
     if(copy_depthCloud->empty())
         return;
 
-
+    float row_res = 77.2 / 1024;
+    float col_res = 70.4 / 1280;
     #pragma omp parallel for num_threads(6)
     for (auto & pt : copy_depthCloud->points)
     {
-
         float dist,r,g,b;
-        int row = round((atan2(pt.z,sqrt(pow(pt.x, 2) + pow(pt.y, 2))) * (180.0f / M_PI)) / 0.3);
-        int col = round((atan2(pt.x, pt.y) * (180.0f / M_PI)) / 0.3);
-        row = 256 - row;
+        int row = round((atan2(pt.z,sqrt(pow(pt.x, 2) + pow(pt.y, 2))) * (180.0f / M_PI)) / row_res);
+        int col = round((atan2(pt.x, pt.y) * (180.0f / M_PI)) / col_res);
+        row = 512 - row;
+        col = abs(col) - 1000;
 
-        if (row < 0 || row >= 512 || col < 0 || col >= 640)
+        if (row < 0 || row >= 1024 || col < 0 || col >= 1280)
             continue;
 
         dist = pointDistance(pt);
-        getColor(dist,50,r,g,b);
-        // circle_image.at<cv::Vec3b>(row, col) = cv::Vec3b(r, g, b);  //根据距离赋值三通道
-        cv::circle(circle_image, cv::Point2f(col,row), 0, cv::Scalar(r, g, b), 5);//(x,y)
+        getColor(dist,120,r,g,b);
+        // circle_image.at<cv::Vec3b>(col, row) = cv::Vec3b(r, g, b);  //根据距离赋值三通道
+        cv::circle(circle_image, cv::Point2f(col,row), 0, cv::Scalar(r, g, b),3);
         // ROS_INFO("创建成功\n");  
     }
 
-    // cv::addWeighted(scaled_image, 1.0,circle_image, 0.5, 0, scaled_image);
-
+    // cv::addWeighted(cv_image, 1.0,circle_image, 0.5, 0, cv_image);
     cv_bridge::CvImage bridge;
     bridge.image = circle_image;
     bridge.encoding = "bgr8";
     sensor_msgs::Image::Ptr imageShowPointer = bridge.toImageMsg();
     imageShowPointer->header.stamp = cur_image_time;
     pub_depth_image.publish(imageShowPointer);
-    // cv::imwrite("/home/hong/slam/hhh_ws/src/nonlinear_opt_in_slam/data/saveImageRGB.png", scaled_image);
+
     // cv::imwrite("/home/hong/slam/hhh_ws/src/nonlinear_opt_in_slam/data/saveRangeImageRGB.png",circle_image);
 
     // ROS_INFO("*****************************************\n");
@@ -205,8 +212,8 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     // downSizeFilter.setInputCloud(laser_cloud);
     // downSizeFilter.filter(*laser_cloud_DS);
     // *laser_cloud = *laser_cloud_DS;
-
-    //保留 +x
+    
+    //保留 +x 区域
     pcl::PointCloud<PointType>::Ptr laser_cloud_filter (new pcl::PointCloud<PointType>());
     for (auto& pt:laser_cloud->points)
     {
@@ -218,8 +225,14 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     *laser_cloud = *laser_cloud_filter;
 
     // 转换lidar -> cam（lidar和相机的标定外参）
+    // Eigen::Matrix4f transOffset;
+    // transOffset <<  -0.00113207, -0.0158688, 0.999873,0.050166,
+    //         -0.9999999,  -0.000486594, -0.00113994,0.050166,
+    //         0.000504622,  -0.999874,  -0.0158682,-0.0312415,
+    //         0,0,0,1;
+
     pcl::PointCloud<PointType>::Ptr laser_cloud_offset (new pcl::PointCloud<PointType>());
-    Eigen::Affine3f transOffset = pcl::getTransformation(0.,0.,0.,0.,0.,0.);// 填写正确的外参
+    Eigen::Affine3f transOffset = pcl::getTransformation(-0.0409257,-0.0318424,0.0927219,0.,0.,0.);// 填写正确的外参 0.050166, 0.050166,0.0312415
     pcl::transformPointCloud(*laser_cloud,*laser_cloud_offset,transOffset);
     *laser_cloud = *laser_cloud_offset;
 
@@ -227,16 +240,18 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     pcl::PointCloud<PointType>::Ptr laser_cloud_global (new pcl::PointCloud<PointType>());
     pcl::transformPointCloud(*laser_cloud,*laser_cloud_global,transNow);
     *depthCloud = *laser_cloud_global;
+
     // 保存转换后的新点云
+    
     double timeScanCur = msg->header.stamp.toSec();
     // timeQueue.push_back(timeScanCur);
     // cloudQueue.push_back(*laser_cloud_global);
 
-    // 累计5s内的点云
+    //累计1s内的点云
     // while (!timeQueue.empty())
     // {
     //     /* code */
-    //     if (timeScanCur - timeQueue.front() > 5.0)
+    //     if (timeScanCur - timeQueue.front() > 0.1)
     //     {
     //         cloudQueue.pop_front();
     //         timeQueue.pop_front();
@@ -244,19 +259,17 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     //         break;
     //     }
     // }
-
-    std::lock_guard<std::mutex> lock(mtx_lidar);
-
     // depthCloud->clear();
+    std::lock_guard<std::mutex> lock(mtx_lidar);
+    laser_time = timeScanCur;
     // for (int i = 0; i < (int)cloudQueue.size(); ++i)
-        // *depthCloud += cloudQueue[i];
+    //     *depthCloud += cloudQueue[i];
    
-
-    pcl::PointCloud<PointType>::Ptr depthCloudDS(new pcl::PointCloud<PointType>());
-    downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
-    downSizeFilter.setInputCloud(depthCloud);
-    downSizeFilter.filter(*depthCloudDS);
-    *depthCloud = *depthCloudDS;
+    // pcl::PointCloud<PointType>::Ptr depthCloudDS(new pcl::PointCloud<PointType>());
+    // downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
+    // downSizeFilter.setInputCloud(depthCloud);
+    // downSizeFilter.filter(*depthCloudDS);
+    // *depthCloud = *depthCloudDS;
 
     return;
 }
@@ -271,7 +284,7 @@ int main(int argc,char **argv)
     ros::Subscriber lidar_;
     ros::Subscriber image_;
 
-    pub_depth_image =   nh.advertise<sensor_msgs::Image>("/fusion_image",   5);
+    pub_depth_image =   nh.advertise<sensor_msgs::Image>("/fusion_image",1,true);
     
 
     lidar_ = nh.subscribe("/livox/lidar",5,LivoxCallback,ros::TransportHints().tcpNoDelay());

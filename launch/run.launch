@@ -3,5 +3,8 @@
     </node>
 
     <node ns ="hong_test" pkg="tf" type="static_transform_publisher" name="lidar_cam_broadcaster" args=" 0. 0. 0. 0. 0. 0. 1. livox_frame world 100"/>
-    <node pkg="image_transport" type="republish" name="ls_slam_republish" args="compressed in:=/left_camera/image raw out:=/camera/image" output="screen" respawn="true"/>
+    <node ns = "hong_test" pkg="image_transport" type="republish" name="ls_slam_republish" args="compressed in:=/left_camera/image raw out:=/camera/image" output="screen" respawn="true"/>
+
+    <node pkg="rviz" type="rviz" name="project_rviz" args="/home/hhh/project_hhh/temp/slam/hhh_ws/src/nonlinear_opt_in_slam/launch/project.rviz"/>
+
 </launch>
