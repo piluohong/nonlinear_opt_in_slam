@@ -21,7 +21,7 @@ find_package(g2o REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(OpenCV 4 REQUIRED)
-find_package(PCL 1.10.0 REQUIRED)
+find_package(PCL  REQUIRED)
 
 
 # message(STATUS ${EIGEN3_VERSION})
