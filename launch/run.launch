@@ -3,10 +3,10 @@
     </node>
 
     <node ns ="hong_test" pkg="tf" type="static_transform_publisher" name="lidar_world_broadcaster" args=" 0. 0. 0. 0. 0. 0. 1. world livox_frame 100"/>
-    <node ns ="hong_test" pkg="tf" type="static_transform_publisher" name="cam_world_broadcaster" args=" 0. 0. 0. 0. 0. 0. 1. world camera_link 100"/>
-    <node ns = "hong_test" pkg="image_transport" type="republish" name="ls_slam_republish" args="compressed in:=/left_camera/image raw out:=/camera/image" output="screen" respawn="true"/>
+    <node ns ="hong_test" pkg="tf" type="static_transform_publisher" name="cam_world_broadcaster" args=" 0. 0. 0. 0. 0. 0. 1. world camera 100"/>
+    <node ns = "hong_test" pkg="image_transport" type="republish" name="ls_slam_republish" args="compressed in:=/camera/image_color raw out:=/camera/image" output="screen" respawn="true"/>
     
 
-    <node pkg="rviz" type="rviz" name="project_rviz" args="/home/hhh/project_hhh/temp/slam/hhh_ws/src/nonlinear_opt_in_slam/launch/project.rviz"/>
+    <node pkg="rviz" type="rviz" name="project_rviz" args="-d ${find ls_slam}/launch/project.rviz"/>
 
 </launch>
