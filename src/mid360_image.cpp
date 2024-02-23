@@ -40,9 +40,15 @@
 using namespace std;
 using PointType = pcl::PointXYZI;
 
+ros::Subscriber lidar_;
+ros::Subscriber image_;
+
+ros::Publisher pub_depth_image;
+ros::Publisher pubCloud;
+
+
 //config params
 static int LiDAR_SKIP = 0;
-ros::Publisher pub_depth_image;
 
 std::mutex mtx_lidar;
 
@@ -53,25 +59,28 @@ double laser_time;
 
 
 pcl::PointCloud<PointType>::Ptr depthCloud (new pcl::PointCloud<PointType>());
+pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr colorCloud (new pcl::PointCloud<pcl::PointXYZRGBNormal>());
+static pcl::PointCloud<PointType>::Ptr copy_depthCloud (new pcl::PointCloud<PointType>());
 
 static cv::Mat project_image;
-static pcl::PointCloud<PointType>::Ptr copy_depthCloud (new pcl::PointCloud<PointType>());
 static Eigen::Matrix4f extrinsicMat_RT; // 外参旋转矩阵3*3和平移向量3*1
-static cv::Mat intrisicMat(3, 4, cv::DataType<double>::type);	   // 内参3*4的投影矩阵，最后一列是三个零
+static cv::Mat intrisicMat(3, 4, cv::DataType<double>::type);// 内参3*4的投影矩阵，最后一列是三个零
+static cv::Mat distCoeffs(3, 3, cv::DataType<double>::type);
 
 void CalibrationData()
 {
+    //hku1.bag -> config
     extrinsicMat_RT(0, 0) = 0.00162756;
 	extrinsicMat_RT(0, 1) = -0.999991;
-	extrinsicMat_RT(0, 2) =  0.00390957;
-	extrinsicMat_RT(0, 3) =   0.0409257;
+	extrinsicMat_RT(0, 2) = 0.00390957;
+	extrinsicMat_RT(0, 3) = 0.0409257;
 	extrinsicMat_RT(1, 0) = -0.0126748;
 	extrinsicMat_RT(1, 1) = -0.00392989;
 	extrinsicMat_RT(1, 2) = -0.999912;
 	extrinsicMat_RT(1, 3) = 0.0318424;
-	extrinsicMat_RT(2, 0) =  0.999918;
-	extrinsicMat_RT(2, 1) =  0.00157786;
-	extrinsicMat_RT(2, 2) =  -0.012681;
+	extrinsicMat_RT(2, 0) = 0.999918;
+	extrinsicMat_RT(2, 1) = 0.00157786;
+	extrinsicMat_RT(2, 2) = -0.012681;
 	extrinsicMat_RT(2, 3) = -0.0927219;
 	extrinsicMat_RT(3, 0) = 0.0;
 	extrinsicMat_RT(3, 1) = 0.0;
@@ -90,6 +99,7 @@ void CalibrationData()
 	intrisicMat.at<double>(2, 1) = 0.000000e+00;
 	intrisicMat.at<double>(2, 2) = 1.000000e+00;
 	intrisicMat.at<double>(2, 3) = 0.000000e+00;
+
 	// distCoeffs.at<double>(0) = -0.008326874784366894;
 	// distCoeffs.at<double>(1) = -0.06967846599874981;
 	// distCoeffs.at<double>(2) = 0.006185220615585947;
@@ -184,7 +194,6 @@ void ImageCallback(const sensor_msgs::ImageConstPtr &image_msg)
     #pragma omp parallel for num_threads(6)
     for (auto & pt : copy_depthCloud->points)
     {
-        float dist,r,g,b;
         // int row = round((atan2(pt.z,sqrt(pow(pt.x, 2) + pow(pt.y, 2))) * (180.0f / M_PI)) / row_res);
         // int col = round((atan2(pt.x, pt.y) * (180.0f / M_PI)) / col_res);
          
@@ -193,17 +202,28 @@ void ImageCallback(const sensor_msgs::ImageConstPtr &image_msg)
          X.at<double>(2,0) = pt.z;
          X.at<double>(3,0) = 1;
 
-         Y = intrisicMat  * X; //相机坐标投影到像素坐标
-         cv::Point2f u_v;
+        Y = intrisicMat  * X; //相机坐标投影到像素坐标
+        cv::Point2f u_v;
         u_v.x = Y.at<double>(0, 0) / Y.at<double>(2, 0);
 		u_v.y = Y.at<double>(1, 0) / Y.at<double>(2, 0);
 
         if(u_v.x < 0 || u_v.y < 0 || u_v.x > 1280 || u_v.y > 1024 )
             continue;
 
+        float dist,r,g,b;
         dist = pointDistance(pt);
         getColor(dist,50,r,g,b);
         cv::circle(circle_image, cv::Point2f(u_v.x,u_v.y), 0, cv::Scalar(r, g, b),5);
+        
+        pcl::PointXYZRGBNormal p;
+        p.x = pt.x;
+        p.y = pt.y;
+        p.z = pt.z;
+        p.r = cv_image.at<cv::Vec3b>(u_v.y,u_v.x)[0];
+        p.g = cv_image.at<cv::Vec3b>(u_v.y,u_v.x)[1];
+        p.b = cv_image.at<cv::Vec3b>(u_v.y,u_v.x)[2];
+
+        colorCloud->points.push_back(p);
         // ROS_INFO("创建成功\n");  
     }
 
@@ -212,8 +232,19 @@ void ImageCallback(const sensor_msgs::ImageConstPtr &image_msg)
     bridge.image = circle_image;
     bridge.encoding = "bgr8";
     sensor_msgs::Image::Ptr imageShowPointer = bridge.toImageMsg();
-    imageShowPointer->header.stamp = cur_image_time;
+    imageShowPointer->header.stamp = ros::Time::now();
     pub_depth_image.publish(imageShowPointer);
+
+    colorCloud->width = colorCloud->points.size();
+    colorCloud->height = 1;
+    ROS_WARN(">>> %d\n",colorCloud->width);
+    sensor_msgs::PointCloud2 color_msg;
+    pcl::toROSMsg(*colorCloud, color_msg);			   
+    color_msg.header.frame_id = "camera_link";		   
+    color_msg.header.stamp = ros::Time::now();
+    pubCloud.publish(color_msg);
+
+    colorCloud->clear();
 
     // cv::imwrite("/home/hong/slam/hhh_ws/src/nonlinear_opt_in_slam/data/saveRangeImageRGB.png",circle_image);
 
@@ -276,15 +307,13 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     }
     *laser_cloud = *laser_cloud_filter;
 
-    // cam -> lidar 转换lidar -> cam（lidar和相机的标定外参）
+    //转换lidar -> cam（lidar和相机的标定外参）
     Eigen::Matrix3f linearPart = extrinsicMat_RT.topLeftCorner<3, 3>();
     Eigen::Vector3f translation = extrinsicMat_RT.topRightCorner<3, 1>();
     pcl::PointCloud<PointType>::Ptr laser_cloud_offset (new pcl::PointCloud<PointType>());
-     Eigen::Affine3f transOffset;
-     transOffset.linear() = linearPart;
-     transOffset.translation() = translation;
-
-    // transOffset = transOffset.inverse();
+    Eigen::Affine3f transOffset;
+    transOffset.linear() = linearPart;
+    transOffset.translation() = translation;
     pcl::transformPointCloud(*laser_cloud,*laser_cloud_offset,transOffset);
     *laser_cloud = *laser_cloud_offset;
 
@@ -296,26 +325,26 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     // 保存转换后的新点云
     
     double timeScanCur = msg->header.stamp.toSec();
-    // timeQueue.push_back(timeScanCur);
-    // cloudQueue.push_back(*laser_cloud_global);
+    timeQueue.push_back(timeScanCur);
+    cloudQueue.push_back(*laser_cloud_global);
 
     //累计1s内的点云
-    // while (!timeQueue.empty())
-    // {
-    //     /* code */
-    //     if (timeScanCur - timeQueue.front() > 0.1)
-    //     {
-    //         cloudQueue.pop_front();
-    //         timeQueue.pop_front();
-    //     }else{
-    //         break;
-    //     }
-    // }
-    // depthCloud->clear();
+    while (!timeQueue.empty())
+    {
+        /* code */
+        if (timeScanCur - timeQueue.front() > 1)
+        {
+            cloudQueue.pop_front();
+            timeQueue.pop_front();
+        }else{
+            break;
+        }
+    }
+    depthCloud->clear();
     std::lock_guard<std::mutex> lock(mtx_lidar);
     laser_time = timeScanCur;
-    // for (int i = 0; i < (int)cloudQueue.size(); ++i)
-    //     *depthCloud += cloudQueue[i];
+    for (int i = 0; i < (int)cloudQueue.size(); ++i)
+        *depthCloud += cloudQueue[i];
    
     // pcl::PointCloud<PointType>::Ptr depthCloudDS(new pcl::PointCloud<PointType>());
     // downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
@@ -333,12 +362,10 @@ int main(int argc,char **argv)
     ros::NodeHandle nh;
     ROS_INFO("\033[1;32m**** Mid360 to RangeImage Node Start. ****\033[0m\n");
 
-    ros::Subscriber lidar_;
-    ros::Subscriber image_;
-
     CalibrationData();
 
     pub_depth_image =   nh.advertise<sensor_msgs::Image>("/fusion_image",1,true);
+    pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/livox/color_lidar", 1,true);	
     
 
     lidar_ = nh.subscribe("/livox/lidar",5,LivoxCallback,ros::TransportHints().tcpNoDelay());
