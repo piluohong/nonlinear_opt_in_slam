@@ -7,7 +7,6 @@ add_compile_options(-std=c++17)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -19,21 +18,11 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(Eigen3 REQUIRED)
 find_package(g2o REQUIRED)
+find_package(OpenMP REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(OpenCV 4 REQUIRED)
-find_package(PCL  REQUIRED)
-find_package(OpenMP REQUIRED)
+find_package(PCL REQUIRED)
 
-message(STATUS "OpenCV version: ${OpenCV_VERSION}")
-
-include(FindOpenMP)
-if(OPENMP_FOUND)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-else(OPENMP_FOUND)
-  message("ERROR: OpenMP could not be found.")
-endif(OPENMP_FOUND)
 
 # message(STATUS ${EIGEN3_VERSION})
 
@@ -136,6 +125,7 @@ catkin_package(
 ###########
 ## Build ##
 ###########
+
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
