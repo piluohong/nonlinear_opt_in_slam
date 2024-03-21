@@ -45,6 +45,7 @@ ros::Subscriber image_;
 
 ros::Publisher pub_depth_image;
 ros::Publisher pubCloud;
+ros::Publisher pub_;
 
 static int lidar_count = 1;
 static int lidar_nums = 0;
@@ -67,6 +68,7 @@ static pcl::PointCloud<PointType>::Ptr copy_depthCloud (new pcl::PointCloud<Poin
 
 static cv::Mat project_image;
 static Eigen::Matrix4f extrinsicMat_RT; // 外参旋转矩阵3*3和平移向量3*1
+static Eigen::Affine3f transOffset;
 static cv::Mat intrisicMat(3, 4, cv::DataType<double>::type);// 内参3*4的投影矩阵，最后一列是三个零
 static cv::Mat intrisic(3, 3, cv::DataType<double>::type);			   // 内参3*3矩阵
 static cv::Mat distCoeffs(5, 1, cv::DataType<double>::type);// 畸变向量
@@ -108,27 +110,27 @@ void CalibrationData()
     extrinsicMat_RT(0, 0) = -0.00113207;
 	extrinsicMat_RT(0, 1) = -0.0158688;
 	extrinsicMat_RT(0, 2) = 0.999873;
-	extrinsicMat_RT(0, 3) = 0.050166;
+	extrinsicMat_RT(0, 3) = -0.04;//0.050166;
 	extrinsicMat_RT(1, 0) = -0.9999999;
 	extrinsicMat_RT(1, 1) = -0.000486594;
 	extrinsicMat_RT(1, 2) = -0.00113994;
-	extrinsicMat_RT(1, 3) = 0.0474116;
+	extrinsicMat_RT(1, 3) = -0.045;//0.0474116;
 	extrinsicMat_RT(2, 0) = 0.000504622;
 	extrinsicMat_RT(2, 1) = -0.999874;
 	extrinsicMat_RT(2, 2) = -0.0158682;
-	extrinsicMat_RT(2, 3) = -0.0312415;
+	extrinsicMat_RT(2, 3) = 0.1;//-0.0312415;
 	extrinsicMat_RT(3, 0) = 0.0;
 	extrinsicMat_RT(3, 1) = 0.0;
 	extrinsicMat_RT(3, 2) = 0.0;
 	extrinsicMat_RT(3, 3) = 1.0;
 
-    intrisicMat.at<double>(0, 0) = intrisic.at<double>(0,0)=  863.4241;
+    intrisicMat.at<double>(0, 0) = intrisic.at<double>(0,0)=  513.970934;//863.4241;
 	intrisicMat.at<double>(0, 1) = intrisic.at<double>(0,1)= 0.000000e+00;
-	intrisicMat.at<double>(0, 2) = intrisic.at<double>(0,2)=  640.6808;
+	intrisicMat.at<double>(0, 2) = intrisic.at<double>(0,2)=  324.642447;//640.6808;
 	intrisicMat.at<double>(0, 3) = 0.000000e+00;
 	intrisicMat.at<double>(1, 0) = intrisic.at<double>(1,0)= 0.000000e+00;
-	intrisicMat.at<double>(1, 1) = intrisic.at<double>(1,1)=  863.4171;
-	intrisicMat.at<double>(1, 2) = intrisic.at<double>(1,2)= 518.3392;
+	intrisicMat.at<double>(1, 1) = intrisic.at<double>(1,1)=  515.388246;//863.4171;
+	intrisicMat.at<double>(1, 2) = intrisic.at<double>(1,2)= 241.513083;//518.3392;
 	intrisicMat.at<double>(1, 3) = 0.000000e+00;
 	intrisicMat.at<double>(2, 0) = intrisic.at<double>(2,0)= 0.000000e+00;
 	intrisicMat.at<double>(2, 1) = intrisic.at<double>(2,1)= 0.000000e+00;
@@ -138,11 +140,18 @@ void CalibrationData()
     // std::cout << intrisic << std::endl;
 
     //k1,k2,p1,p2,k3
-    distCoeffs.at<double>(0) = -0.1080;
-    distCoeffs.at<double>(1) = 0.1050;
-    distCoeffs.at<double>(2) = -1.2872e-04;
-    distCoeffs.at<double>(3) = 5.7923e-05;
-    distCoeffs.at<double>(4) = -0.0222;
+    distCoeffs.at<double>(0) = 0.035939;//-0.1080;
+    distCoeffs.at<double>(1) =  -0.119104;//0.1050;
+    distCoeffs.at<double>(2) = 0.002012;//-1.2872e-04;
+    distCoeffs.at<double>(3) =  -0.000766;//5.7923e-05;
+    distCoeffs.at<double>(4) = 0.000000;//-0.0222;
+
+    Eigen::Matrix3f linearPart = extrinsicMat_RT.topLeftCorner<3, 3>();
+    Eigen::Vector3f translation = extrinsicMat_RT.topRightCorner<3, 1>();
+    
+    transOffset.linear() = linearPart;
+    transOffset.translation() = translation;
+    transOffset = transOffset.inverse();
     
 
 }
@@ -219,7 +228,7 @@ void ImageCallback(const sensor_msgs::ImageConstPtr &image_msg)
     cv::initUndistortRectifyMap(intrisic, distCoeffs, cv::Mat(), cv::getOptimalNewCameraMatrix(intrisic, distCoeffs, imageSize, 1, imageSize, 0), imageSize, CV_16SC2, map1, map2);
     cv::remap(cv_image, cv_image, map1, map2, cv::INTER_LINEAR); // correct the distortion
 
-    cv::Mat circle_image(1024, 1280, CV_8UC3, cv::Scalar(255,255,255));
+    cv::Mat circle_image(cv_image.rows, cv_image.cols, CV_8UC3, cv::Scalar(255,255,255));
     circle_image = cv_image.clone();
     //原始图像缩放0.5倍
     // double scale_factor = 0.5;
@@ -229,9 +238,6 @@ void ImageCallback(const sensor_msgs::ImageConstPtr &image_msg)
     
     if(copy_depthCloud->empty())
         return;
-
-    // float row_res = 77.2 / 1024;
-    // float col_res = 70.4 / 1280;
 
     cv::Mat X(4, 1, cv::DataType<double>::type);
 	cv::Mat Y(3, 1, cv::DataType<double>::type);
@@ -252,13 +258,13 @@ void ImageCallback(const sensor_msgs::ImageConstPtr &image_msg)
         u_v.x = Y.at<double>(0, 0) / Y.at<double>(2, 0);
 		u_v.y = Y.at<double>(1, 0) / Y.at<double>(2, 0);
 
-        if(u_v.x < 0 || u_v.y < 0 || u_v.x > 1280 || u_v.y > 1024 )
+        if(u_v.x < 0 || u_v.y < 0 || u_v.x > cv_image.cols || u_v.y > cv_image.rows)
             continue;
 
         float dist,r,g,b;
         dist = pointDistance(pt);
         getColor(dist,50,r,g,b);
-        cv::circle(circle_image, cv::Point2f(u_v.x,u_v.y), 0, cv::Scalar(r, g, b),5);
+        cv::circle(circle_image, cv::Point2f(u_v.x,u_v.y), 0, cv::Scalar(r, g, b),4);
         
         pcl::PointXYZRGBNormal p;
         p.x = pt.x;
@@ -282,10 +288,12 @@ void ImageCallback(const sensor_msgs::ImageConstPtr &image_msg)
 
     colorCloud->width = colorCloud->points.size();
     colorCloud->height = 1;
-    ROS_WARN(">>> %d\n",int(copy_depthCloud->points.size() - colorCloud->width));
+    ROS_INFO(">>> %d\n",int(copy_depthCloud->points.size() - colorCloud->width));
+    //转回lidar系
+    pcl::transformPointCloud(*colorCloud,*colorCloud,transOffset.inverse());
     sensor_msgs::PointCloud2 color_msg;
     pcl::toROSMsg(*colorCloud, color_msg);			   
-    color_msg.header.frame_id = image_msg->header.frame_id;		   
+    color_msg.header.frame_id = "laser_link";		   
     color_msg.header.stamp = ros::Time::now();
     pubCloud.publish(color_msg);
 
@@ -315,18 +323,116 @@ inline bool IsNear(const T& p1, const T& p2) {
 
 void VelodyneCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg)
 {
-    pcl::PointCloud<pcl::PointXYZ> msg;
-    pcl::fromROSMsg(*cloud_msg, msg);
-    int available_nums = 0;
-    for (size_t i = 0; i < msg.size(); i++)
+    // pcl::PointCloud<pcl::PointXYZ> msg;
+    // pcl::fromROSMsg(*cloud_msg, msg);
+    // int available_nums = 0;
+    // for (size_t i = 0; i < msg.size(); i++)
+    // {
+    //      available_nums += 1;
+    // }
+
+    // lidar_nums = available_nums;
+    // lidar_pts.push_back(lidar_nums);
+    // std::cout << ">>> lidar_count: "<< lidar_count << ", Current Frame points: " << lidar_nums << std::endl;
+    // lidar_count++;
+
+    static int lidar_count = -1;
+    //间隔处理
+    if (++lidar_count % (LiDAR_SKIP + 1) != 0)
+        return;
+    
+    //订阅 lidar -> camera 的静态tf树（外参）
+    static tf::TransformListener listener;
+    static tf::StampedTransform transform;
+    try
     {
-         available_nums += 1;
+        /* code */
+        listener.waitForTransform("world", "laser_link", ros::Time::now(), ros::Duration(0.01));
+        listener.lookupTransform("world", "laser_link", ros::Time::now(), transform);
+    }
+    catch(tf::TransformException ex)
+    {
+        std::cerr << "lidar no tf to world." << '\n';
+        return;
     }
 
-    lidar_nums = available_nums;
-    lidar_pts.push_back(lidar_nums);
-    std::cout << ">>> lidar_count: "<< lidar_count << ", Current Frame points: " << lidar_nums << std::endl;
-    lidar_count++;
+    //提取TF变换参数
+    double xCur,yCur,zCur,rollCur,pitchCur,yawCur;
+    xCur = transform.getOrigin().x();
+    yCur = transform.getOrigin().y();
+    zCur = transform.getOrigin().z();
+    tf::Matrix3x3 m(transform.getRotation());
+    m.getRPY(rollCur, pitchCur, yawCur);
+    Eigen::Affine3f transNow = pcl::getTransformation(xCur,yCur,zCur,rollCur,pitchCur,yawCur);
+
+    auto msg = cloud_msg;
+
+    // 提取点云并降采样
+    pcl::PointCloud<PointType>::Ptr laser_cloud(new pcl::PointCloud<PointType>());
+    pcl::fromROSMsg(*msg,*laser_cloud);
+    // pcl::PointCloud<PointType>::Ptr laser_cloud_DS (new pcl::PointCloud<PointType>());
+    static pcl::VoxelGrid<PointType> downSizeFilter;
+    // downSizeFilter.setLeafSize(0.2,0.2,0.2);
+    // downSizeFilter.setInputCloud(laser_cloud);
+    // downSizeFilter.filter(*laser_cloud_DS);
+    // *laser_cloud = *laser_cloud_DS;
+    
+    //保留 +x 区域
+    pcl::PointCloud<PointType>::Ptr laser_cloud_filter (new pcl::PointCloud<PointType>());
+    for (auto& pt:laser_cloud->points)
+    {
+        if (pt.x >= 0)
+        {
+            laser_cloud_filter->push_back(pt);
+        }
+    }
+    *laser_cloud = *laser_cloud_filter;
+
+    //转换lidar -> cam（lidar和相机的标定外参）
+    pcl::PointCloud<PointType>::Ptr laser_cloud_offset (new pcl::PointCloud<PointType>());
+    pcl::transformPointCloud(*laser_cloud,*laser_cloud_offset,transOffset);
+    *laser_cloud = *laser_cloud_offset;
+
+    // 根据tf树 转换新点到全局系下
+    pcl::PointCloud<PointType>::Ptr laser_cloud_global (new pcl::PointCloud<PointType>());
+    pcl::transformPointCloud(*laser_cloud,*laser_cloud_global,transNow);
+    *depthCloud = *laser_cloud_global;
+
+    // 保存新的点云
+    double timeScanCur = msg->header.stamp.toSec();
+    // timeQueue.push_back(timeScanCur);
+    // cloudQueue.push_back(*laser_cloud_global);
+
+    // //累计1s内的点云
+    // while (!timeQueue.empty())
+    // {
+    //     /* code */
+    //     if (timeScanCur - timeQueue.front() > 1)
+    //     {
+    //         cloudQueue.pop_front();
+    //         timeQueue.pop_front();
+    //     }else{
+    //         break;
+    //     }
+    // }
+    // depthCloud->clear();
+    std::lock_guard<std::mutex> lock(mtx_lidar);
+    laser_time = timeScanCur;
+    // for (int i = 0; i < (int)cloudQueue.size(); ++i)
+    //     *depthCloud += cloudQueue[i];
+   
+    // pcl::PointCloud<PointType>::Ptr depthCloudDS(new pcl::PointCloud<PointType>());
+    // downSizeFilter.setLeafSize(0.2, 0.2, 0.2);
+    // downSizeFilter.setInputCloud(depthCloud);
+    // downSizeFilter.filter(*depthCloudDS);
+    // *depthCloud = *depthCloudDS;
+    sensor_msgs::PointCloud2 raw_msg;
+    raw_msg = *msg;
+    raw_msg.header.stamp = ros::Time::now();
+    raw_msg.header.frame_id = "laser_link";
+    pub_.publish(raw_msg);
+
+    return;
 }
 void LivoxCallback_(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
 {
@@ -458,21 +564,22 @@ int main(int argc,char **argv)
     CalibrationData();
 
     pub_depth_image =   nh.advertise<sensor_msgs::Image>("/fusion_image",1,true);
-    pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/livox/color_lidar", 1,true);	
+    pubCloud = nh.advertise<sensor_msgs::PointCloud2>("/color_lidar", 1,true);	
+    pub_ = nh.advertise<sensor_msgs::PointCloud2>("/raw_lidar", 1,true);
     
 
-    lidar_ = nh.subscribe("/livox/lidar",5,LivoxCallback_,ros::TransportHints().tcpNoDelay());
-    lidar_ = nh.subscribe("/points_raw",5,VelodyneCallback,ros::TransportHints().tcpNoDelay());
-    // image_ = nh.subscribe("/camera/image",5,ImageCallback,ros::TransportHints().tcpNoDelay());
+    lidar_ = nh.subscribe("/livox/lidar",5,LivoxCallback,ros::TransportHints().tcpNoDelay());
+    lidar_ = nh.subscribe("/velodyne_points",5,VelodyneCallback,ros::TransportHints().tcpNoDelay());
+    image_ = nh.subscribe("/camera/image",5,ImageCallback,ros::TransportHints().tcpNoDelay());
 
     
     ros::spin();
-    int sums, aver;
-    for (size_t i = 0; i < lidar_pts.size(); i++)
-    {
-        sums += lidar_pts[i];
-    }
-    printf(">>> Average Frame points: %d\n",sums/lidar_count);
+    // int sums, aver;
+    // for (size_t i = 0; i < lidar_pts.size(); i++)
+    // {
+    //     sums += lidar_pts[i];
+    // }
+    // printf(">>> Average Frame points: %d\n",sums/lidar_count);
     
     return 0;
 
