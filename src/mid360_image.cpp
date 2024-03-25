@@ -73,6 +73,8 @@ static cv::Mat intrisicMat(3, 4, cv::DataType<double>::type);// 内参3*4的投�
 static cv::Mat intrisic(3, 3, cv::DataType<double>::type);			   // 内参3*3矩阵
 static cv::Mat distCoeffs(5, 1, cv::DataType<double>::type);// 畸变向量
 
+static Eigen::Matrix4f mat;
+
 void CalibrationData()
 {
     //hku1.bag -> config lidar->cam
@@ -146,12 +148,15 @@ void CalibrationData()
     distCoeffs.at<double>(3) =  -0.000766;//5.7923e-05;
     distCoeffs.at<double>(4) = 0.000000;//-0.0222;
 
-    Eigen::Matrix3f linearPart = extrinsicMat_RT.topLeftCorner<3, 3>();
-    Eigen::Vector3f translation = extrinsicMat_RT.topRightCorner<3, 1>();
+    //绕y轴旋转180°
+    mat << -1,0,0,0,0,1,0,0,0,0,-1,0,0,0,0,1;
+
+    Eigen::Matrix3f linearPart = mat.topLeftCorner<3, 3>();
+    Eigen::Vector3f translation = mat.topRightCorner<3, 1>();
     
     transOffset.linear() = linearPart;
     transOffset.translation() = translation;
-    transOffset = transOffset.inverse();
+    // transOffset = transOffset.inverse();
     
 
 }
@@ -436,21 +441,38 @@ void VelodyneCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg)
 }
 void LivoxCallback_(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
 {
+    
     //筛选有效点
     int avaliabe_nums = 0;
-    for(size_t i = 0;i < cloud_msg->point_num;i++)
+    // for(size_t i = 0;i < cloud_msg->point_num;i++)
+    // {
+    //     // if(cloud_msg->points[i].line < 3 && ((cloud_msg->points[i].tag & 0x30) == 0x10 ||
+    //     // (cloud_msg->points[i].tag & 0x30) == 0x00) &&
+    //     //     !HasInf(cloud_msg->points[i]) && !HasNan(cloud_msg->points[i]) &&
+    //     //     !IsNear(cloud_msg->points[i],cloud_msg->points[i - 1])){
+    //     //     avaliabe_nums += 1;
+    //     // }
+    // }
+    auto msg = cloud_msg;
+    pcl::PointCloud<PointType>::Ptr cloud_(new pcl::PointCloud<PointType>());
+    LivoxMsgToPcl(cloud_msg,cloud_);
+    pcl::transformPointCloud(*cloud_,*cloud_,transOffset);
+
+    for(auto& pt : cloud_->points)
     {
-        if(cloud_msg->points[i].line < 3 && ((cloud_msg->points[i].tag & 0x30) == 0x10 ||
-        (cloud_msg->points[i].tag & 0x30) == 0x00) &&
-            !HasInf(cloud_msg->points[i]) && !HasNan(cloud_msg->points[i]) &&
-            !IsNear(cloud_msg->points[i],cloud_msg->points[i - 1])){
-            avaliabe_nums += 1;
-        }
+        pt.z = pt.z +3;
     }
-    lidar_nums = avaliabe_nums;
-    lidar_pts.push_back(lidar_nums);
-    std::cout << ">>> lidar_count: "<< lidar_count << ", Current Frame points: " << lidar_nums << std::endl;
-    lidar_count++;
+
+    sensor_msgs::PointCloud2 raw_msg;
+    pcl::toROSMsg(*cloud_,raw_msg);
+    raw_msg.header.stamp = cloud_msg->header.stamp;
+    raw_msg.header.frame_id = "livox_frame";
+    pub_.publish(raw_msg);
+
+    // lidar_nums = avaliabe_nums;
+    // lidar_pts.push_back(lidar_nums);
+    // std::cout << ">>> lidar_count: "<< lidar_count << ", Current Frame points: " << lidar_nums << std::endl;
+    // lidar_count++;
 }
 void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
 {
@@ -568,9 +590,9 @@ int main(int argc,char **argv)
     pub_ = nh.advertise<sensor_msgs::PointCloud2>("/raw_lidar", 1,true);
     
 
-    lidar_ = nh.subscribe("/livox/lidar",5,LivoxCallback,ros::TransportHints().tcpNoDelay());
-    lidar_ = nh.subscribe("/velodyne_points",5,VelodyneCallback,ros::TransportHints().tcpNoDelay());
-    image_ = nh.subscribe("/camera/image",5,ImageCallback,ros::TransportHints().tcpNoDelay());
+    lidar_ = nh.subscribe("/livox/lidar",5,LivoxCallback_,ros::TransportHints().tcpNoDelay());
+    // lidar_ = nh.subscribe("/velodyne_points",5,VelodyneCallback,ros::TransportHints().tcpNoDelay());
+    // image_ = nh.subscribe("/camera/image",5,ImageCallback,ros::TransportHints().tcpNoDelay());
 
     
     ros::spin();

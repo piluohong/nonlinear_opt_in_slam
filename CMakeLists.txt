@@ -7,6 +7,7 @@ add_compile_options(-std=c++17)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+# set(PCL_DIR "/home/h/ku/pcl-1.12.0/share/pcl-1.12")
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -21,7 +22,7 @@ find_package(g2o REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(OpenCV 4 REQUIRED)
-find_package(PCL REQUIRED)
+find_package(PCL  REQUIRED)
 
 
 # message(STATUS ${EIGEN3_VERSION})
@@ -135,6 +136,8 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}  
 )
+
+link_directories(${PCL_LIBRARY_DIRS})
 
 set(G2O_LIBS g2o_cli g2o_ext_freeglut_minimal g2o_simulator g2o_solver_slam2d_linear
 g2o_types_icp g2o_types_slam2d g2o_core g2o_interface g2o_solver_csparse
