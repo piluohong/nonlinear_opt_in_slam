@@ -1,8 +1,13 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10)
 project(ls_slam)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++17)
+set(CMAKE_CXX_STANDARD 17)
+
+set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 ${CMAKE_CXX_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -22,7 +27,20 @@ find_package(g2o REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(OpenCV 4 REQUIRED)
-find_package(PCL  REQUIRED)
+find_package(PCL REQUIRED)
+
+include(FindOpenMP)
+if(OPENMP_FOUND)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+else(OPENMP_FOUND)
+  message("ERROR: OpenMP could not be found.")
+endif(OPENMP_FOUND)
+
+message(STATUS "PCL version: ${PCL_VERSION}")
+message(STATUS "PCL includepath: ${PCL_INCLUDE_DIRS}")
+message(STATUS "PCL libpath: ${PCL_LIBRARY_DIRS}")
 
 
 # message(STATUS ${EIGEN3_VERSION})
