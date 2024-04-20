@@ -188,15 +188,15 @@ void CalibrationData()
     extrinsicMat_RT(0, 0) = -0.00113207;
 	extrinsicMat_RT(0, 1) = -0.0158688;
 	extrinsicMat_RT(0, 2) = 0.999873;
-	extrinsicMat_RT(0, 3) = 0.03;//0.050166;
+	extrinsicMat_RT(0, 3) = 0.00;//0.050166;
 	extrinsicMat_RT(1, 0) = -0.9999999;
 	extrinsicMat_RT(1, 1) = -0.000486594;
 	extrinsicMat_RT(1, 2) = -0.00113994;
-	extrinsicMat_RT(1, 3) = 0.05;//0.0474116;
+	extrinsicMat_RT(1, 3) = 0.00;//0.0474116;
 	extrinsicMat_RT(2, 0) = 0.000504622;
 	extrinsicMat_RT(2, 1) = -0.999874;
 	extrinsicMat_RT(2, 2) =  -0.0158682;
-	extrinsicMat_RT(2, 3) = 0.1;//-0.0312415;
+	extrinsicMat_RT(2, 3) = 0.05;//-0.0312415;
 	extrinsicMat_RT(3, 0) = 0.0;
 	extrinsicMat_RT(3, 1) = 0.0;
 	extrinsicMat_RT(3, 2) = 0.0;
@@ -557,7 +557,7 @@ void LivoxCallback(const livox_ros_driver2::CustomMsg::ConstPtr& cloud_msg)
 
                 float dist,r,g,b;
                 dist = pointDistance(pt);
-                getColor(dist,50,r,g,b);
+                getColor(dist,40,r,g,b);
 #pragma omp critical
                 {
                     pcl::PointXYZRGBNormal p;
@@ -571,7 +571,7 @@ void LivoxCallback(const livox_ros_driver2::CustomMsg::ConstPtr& cloud_msg)
                     // p.curvature = dist;
                     colorCloud->points.push_back(p);
                     
-                    cv::circle(show_image, cv::Point2f(u_v.x,u_v.y), 0, cv::Scalar(r, g, b),5);
+                    cv::circle(show_image, cv::Point2f(u_v.x,u_v.y), 1, cv::Scalar(r, g, b),5);
                     
                 }
         
@@ -595,7 +595,7 @@ void LivoxCallback(const livox_ros_driver2::CustomMsg::ConstPtr& cloud_msg)
     color_msg.header.stamp = cloud_msg->header.stamp;
     pubCloud.publish(color_msg);
     colorCloud->clear();
-    depthCloud->clear();
+    // depthCloud->clear();
 }
 
 int main(int argc,char **argv)
