@@ -1,0 +1,28 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/h/exploration/loam/devel/include/**",
+        "/home/h/livox_driver2_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/h/exploration/loam/src/direct_lidar_inertial_odometry/include/**",
+        "/home/h/exploration/loam/src/FAST_LIO/include/**",
+        "/home/h/exploration/loam/src/ig_lio/include/**",
+        "/home/h/exploration/loam/src/LiDAR_IMU_Init-main/include/**",
+        "/home/h/exploration/loam/src/nonlinear_opt_in_slam/include/**",
+        "/home/h/exploration/loam/src/Point-LIO/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

@@ -1,0 +1,11 @@
+<launch>
+    <node ns="hong_test" name="mid360Toimage" pkg="ls_slam" type="ls_slam" output="screen" clear_params="true">
+    </node>
+
+    <node ns ="hong_test" pkg="tf" type="static_transform_publisher" name="lidar_world_broadcaster" args=" 0. 0. 0. 0. 0. 0. 1. world  livox_frame 100"/>
+    <!-- <node ns ="hong_test" pkg="tf" type="static_transform_publisher" name="cam_world_broadcaster" args=" 0. 0. 0. 0. 0. 0. 1. world camera_rgb_optical_frame 100"/> -->
+    <!-- <node ns = "hong_test" pkg="image_transport" type="republish" name="ls_slam_republish" args="compressed in:=/camera/color/image_raw  raw out:=/camera/image" output="screen" respawn="true"/> -->
+    
+    <node pkg="rviz" type="rviz" name="project_rviz" args=" -d ${find ls_slam}/launch/project.rviz"/>
+
+</launch>
