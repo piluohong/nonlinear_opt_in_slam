@@ -2,6 +2,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
+#include <std_msgs/Float32.h>
 #include <tf/LinearMath/Quaternion.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_datatypes.h>
@@ -45,7 +46,7 @@
 #include <thread>
 #include <omp.h>
 
-#define IMG_H 480
+#define IMG_H 512
 #define IMG_W 640
 
 struct LivoxPoint {
@@ -97,6 +98,7 @@ ros::Publisher pub_fea_image;
 ros::Publisher pubcolorCloud;
 ros::Publisher pubfullCloud;
 ros::Publisher pubfeaCloud;
+ros::Publisher pubfeasize;
 
 static int lidar_count = 1;
 static int lidar_nums = 0;
@@ -208,8 +210,11 @@ class ncnn_image
         // cv::Mat new_desc  = desc.clone();
         auto fea_pts_vec =  tracker.extractFeature(score);
         std::cout << "fea_size : "<<fea_pts_vec.size() << std::endl;
+        
         for (auto& p : fea_pts_vec)
         {
+            // pcl::PointXYZI pt;
+            
             cv::circle(mat_in, p, 2, cv::Scalar(0, 255, 0), 2);
 
 
@@ -260,36 +265,36 @@ void CalibrationData()
 	// intrisicMat.at<double>(2, 2) = 1.000000e+00;
 	// intrisicMat.at<double>(2, 3) = 0.000000e+00;
 
-    // hku_main_building -> config cam->lidar
-//   extrinsicMat_RT(0, 0) = -0.00113207;
-//   extrinsicMat_RT(0, 1) = -0.0158688;
-//   extrinsicMat_RT(0, 2) = 0.999873;
-//   extrinsicMat_RT(0, 3) = 0.050166;
-//   extrinsicMat_RT(1, 0) = -0.9999999;
-//   extrinsicMat_RT(1, 1) = -0.000486594;
-//   extrinsicMat_RT(1, 2) = -0.00113994;
-//   extrinsicMat_RT(1, 3) = 0.0474116;
-//   extrinsicMat_RT(2, 0) = 0.000504622;
-//   extrinsicMat_RT(2, 1) = -0.999874;
-//   extrinsicMat_RT(2, 2) = -0.0158682;
-//   extrinsicMat_RT(2, 3) = -0.0312415;
-//   extrinsicMat_RT(3, 0) = 0.0;
-//   extrinsicMat_RT(3, 1) = 0.0;
-//   extrinsicMat_RT(3, 2) = 0.0;
-//   extrinsicMat_RT(3, 3) = 1.0;
+    // hku_main_building (r3live) -> config cam->lidar
+  extrinsicMat_RT(0, 0) = -0.00113207;
+  extrinsicMat_RT(0, 1) = -0.0158688;
+  extrinsicMat_RT(0, 2) = 0.999873;
+  extrinsicMat_RT(0, 3) = 0.050166;
+  extrinsicMat_RT(1, 0) = -0.9999999;
+  extrinsicMat_RT(1, 1) = -0.000486594;
+  extrinsicMat_RT(1, 2) = -0.00113994;
+  extrinsicMat_RT(1, 3) = 0.0474116;
+  extrinsicMat_RT(2, 0) = 0.000504622;
+  extrinsicMat_RT(2, 1) = -0.999874;
+  extrinsicMat_RT(2, 2) = -0.0158682;
+  extrinsicMat_RT(2, 3) = -0.0312415;
+  extrinsicMat_RT(3, 0) = 0.0;
+  extrinsicMat_RT(3, 1) = 0.0;
+  extrinsicMat_RT(3, 2) = 0.0;
+  extrinsicMat_RT(3, 3) = 1.0;
 
-//   intrisicMat.at<double>(0, 0) = intrisic.at<double>(0, 0) = 863.4241;
-//   intrisicMat.at<double>(0, 1) = intrisic.at<double>(0, 1) = 0.000000e+00;
-//   intrisicMat.at<double>(0, 2) = intrisic.at<double>(0, 2) = 640.6808;
-//   intrisicMat.at<double>(0, 3) = 0.000000e+00;
-//   intrisicMat.at<double>(1, 0) = intrisic.at<double>(1, 0) = 0.000000e+00;
-//   intrisicMat.at<double>(1, 1) = intrisic.at<double>(1, 1) = 863.4171;
-//   intrisicMat.at<double>(1, 2) = intrisic.at<double>(1, 2) = 518.3392;
-//   intrisicMat.at<double>(1, 3) = 0.000000e+00;
-//   intrisicMat.at<double>(2, 0) = intrisic.at<double>(2, 0) = 0.000000e+00;
-//   intrisicMat.at<double>(2, 1) = intrisic.at<double>(2, 1) = 0.000000e+00;
-//   intrisicMat.at<double>(2, 2) = intrisic.at<double>(2, 2) = 1.000000e+00;
-//   intrisicMat.at<double>(2, 3) = 0.000000e+00;
+  intrisicMat.at<double>(0, 0) = intrisic.at<double>(0, 0) = 431.71205;//863.4241;
+  intrisicMat.at<double>(0, 1) = intrisic.at<double>(0, 1) = 0.000000e+00;
+  intrisicMat.at<double>(0, 2) = intrisic.at<double>(0, 2) = 320.3404;//640.6808;
+  intrisicMat.at<double>(0, 3) = 0.000000e+00;
+  intrisicMat.at<double>(1, 0) = intrisic.at<double>(1, 0) = 0.000000e+00;
+  intrisicMat.at<double>(1, 1) = intrisic.at<double>(1, 1) = 431.70855;//863.4171;
+  intrisicMat.at<double>(1, 2) = intrisic.at<double>(1, 2) = 259.1696;//518.3392;
+  intrisicMat.at<double>(1, 3) = 0.000000e+00;
+  intrisicMat.at<double>(2, 0) = intrisic.at<double>(2, 0) = 0.000000e+00;
+  intrisicMat.at<double>(2, 1) = intrisic.at<double>(2, 1) = 0.000000e+00;
+  intrisicMat.at<double>(2, 2) = intrisic.at<double>(2, 2) = 1.000000e+00;
+  intrisicMat.at<double>(2, 3) = 0.000000e+00;
 
     // midd360_MER139 camera->lidar
     // extrinsicMat_RT(0, 0) = -0.00113207;
@@ -334,36 +339,36 @@ void CalibrationData()
     // transOffset.linear() = linearPart;
     // transOffset.translation() = translation;
 
-     //mid360_455 camera->lidar
-    extrinsicMat_RT(0, 0) = -0.00113207;
-	extrinsicMat_RT(0, 1) = -0.0158688;
-	extrinsicMat_RT(0, 2) = 0.999873;
-	extrinsicMat_RT(0, 3) = -0.055;//0.050166;
-	extrinsicMat_RT(1, 0) = -0.9999999;
-	extrinsicMat_RT(1, 1) = -0.000486594;
-	extrinsicMat_RT(1, 2) = -0.00113994;
-	extrinsicMat_RT(1, 3) = -0.0242;//0.0474116;
-	extrinsicMat_RT(2, 0) = 0.000504622;
-	extrinsicMat_RT(2, 1) = -0.999874;
-	extrinsicMat_RT(2, 2) =  -0.0158682;
-	extrinsicMat_RT(2, 3) = -0.0322;//-0.0312415;
-	extrinsicMat_RT(3, 0) = 0.0;
-	extrinsicMat_RT(3, 1) = 0.0;
-	extrinsicMat_RT(3, 2) = 0.0;
-	extrinsicMat_RT(3, 3) = 1.0;
+     //mid360_455 camera->lidar 640x480
+    // extrinsicMat_RT(0, 0) = -0.00113207;
+	// extrinsicMat_RT(0, 1) = -0.0158688;
+	// extrinsicMat_RT(0, 2) = 0.999873;
+	// extrinsicMat_RT(0, 3) = -0.055;//0.050166;
+	// extrinsicMat_RT(1, 0) = -0.9999999;
+	// extrinsicMat_RT(1, 1) = -0.000486594;
+	// extrinsicMat_RT(1, 2) = -0.00113994;
+	// extrinsicMat_RT(1, 3) = -0.0242;//0.0474116;
+	// extrinsicMat_RT(2, 0) = 0.000504622;
+	// extrinsicMat_RT(2, 1) = -0.999874;
+	// extrinsicMat_RT(2, 2) =  -0.0158682;
+	// extrinsicMat_RT(2, 3) = -0.0322;//-0.0312415;
+	// extrinsicMat_RT(3, 0) = 0.0;
+	// extrinsicMat_RT(3, 1) = 0.0;
+	// extrinsicMat_RT(3, 2) = 0.0;
+	// extrinsicMat_RT(3, 3) = 1.0;
 
-    intrisicMat.at<double>(0, 0) = intrisic.at<double>(0,0)=  381.73895263671875;
-	intrisicMat.at<double>(0, 1) = intrisic.at<double>(0,1)= 0.000000e+00;
-	intrisicMat.at<double>(0, 2) = intrisic.at<double>(0,2)=  314.430419921875;
-	intrisicMat.at<double>(0, 3) = 0.000000e+00;
-	intrisicMat.at<double>(1, 0) = intrisic.at<double>(1,0)= 0.000000e+00;
-	intrisicMat.at<double>(1, 1) = intrisic.at<double>(1,1)=  381.2456970214844;
-	intrisicMat.at<double>(1, 2) = intrisic.at<double>(1,2)= 241.4613494873047;
-	intrisicMat.at<double>(1, 3) = 0.000000e+00;
-	intrisicMat.at<double>(2, 0) = intrisic.at<double>(2,0)= 0.000000e+00;
-	intrisicMat.at<double>(2, 1) = intrisic.at<double>(2,1)= 0.000000e+00;
-	intrisicMat.at<double>(2, 2) = intrisic.at<double>(2,2)= 1.000000e+00;
-	intrisicMat.at<double>(2, 3) = 0.000000e+00;
+    // intrisicMat.at<double>(0, 0) = intrisic.at<double>(0,0)=  381.73895263671875;
+	// intrisicMat.at<double>(0, 1) = intrisic.at<double>(0,1)= 0.000000e+00;
+	// intrisicMat.at<double>(0, 2) = intrisic.at<double>(0,2)=  314.430419921875;
+	// intrisicMat.at<double>(0, 3) = 0.000000e+00;
+	// intrisicMat.at<double>(1, 0) = intrisic.at<double>(1,0)= 0.000000e+00;
+	// intrisicMat.at<double>(1, 1) = intrisic.at<double>(1,1)=  381.2456970214844;
+	// intrisicMat.at<double>(1, 2) = intrisic.at<double>(1,2)= 241.4613494873047;
+	// intrisicMat.at<double>(1, 3) = 0.000000e+00;
+	// intrisicMat.at<double>(2, 0) = intrisic.at<double>(2,0)= 0.000000e+00;
+	// intrisicMat.at<double>(2, 1) = intrisic.at<double>(2,1)= 0.000000e+00;
+	// intrisicMat.at<double>(2, 2) = intrisic.at<double>(2,2)= 1.000000e+00;
+	// intrisicMat.at<double>(2, 3) = 0.000000e+00;
 
     //k1,k2,p1,p2,k3
     distCoeffs.at<double>(0) = -0.056032437831163406;//-0.1080;
@@ -390,7 +395,7 @@ void LivoxMsgToPcl(livox_ros_driver2::CustomMsgConstPtr &cloud_, pcl::PointCloud
 {
     // auto msg_ = cloud_;
  #pragma omp parallel for num_threads(8)
-    for (int i = 0; i < cloud_->point_num; i++)
+    for (size_t i = 0; i < cloud_->point_num; i++)
     {
   
         pcl::PointXYZI pt;
@@ -439,6 +444,11 @@ void ros2cv(sensor_msgs::CompressedImageConstPtr &image_ros,cv::Mat &image,cv::M
     // ROS_Image -> Openshow_image
     cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(image_ros, sensor_msgs::image_encodings::RGB8);
     image = cv_ptr->image;
+
+    if (image.cols == 640 || image.cols == 1280)
+    {
+      cv::resize(image, image, cv::Size(640, 512), 0, 0, cv::INTER_LINEAR);
+    }
 
     if (corr)
     {
@@ -495,7 +505,7 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     cloudQueue.push_back(cloud_msg);
     timeQueue.push_back(timeScanCur); 
  
-    if((timeScanCur - timeQueue.front()).toSec() > 0.05)
+    if((timeScanCur - timeQueue.front()).toSec() > 0.2)
     {  
         timeQueue.pop_front();
         cloudQueue.pop_front();
@@ -504,81 +514,102 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
         return;
     }
 
+    cv::Mat show_image, cv_image,fea_image;
     mtx_lidar.lock();
     image_ros = image_buff.back().first;
     image_buff.pop_front();
     mtx_lidar.unlock();
 
-
-    cv::Mat show_image, cv_image,fea_image;
     // show_image = cv::Mat::zeros(720, 1280, CV_8UC3);
     ros2cv(image_ros,show_image,intrisic,distCoeffs,false);
-    if(show_image.empty())
+    // std::cout << show_image.size() << std::endl;
+    if(show_image.empty()){
         return;
+    }
+
     fea_image = show_image.clone();
     cv_image = show_image.clone();
-    auto fea_pts = ncnn_.ncnn_solve(fea_image,feaCloud);
+    std::vector<cv::Point2f> fea_pts;
+    fea_pts = ncnn_.ncnn_solve(fea_image,feaCloud);
     //pub feaCloud
-    
+
     // std::cout << "show_image size: " << show_image.size() << std::endl;
 
     cv::Mat X(4, 1, cv::DataType<double>::type);
     cv::Mat Y(3, 1, cv::DataType<double>::type);
-    Eigen::Vector3f livox_pt;
+    Eigen::Vector3f cam_pt;
   
-// ROS_WARN(">>>>1<<<<, %d\n",cloud_msg->point_num);
-std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-// #pragma omp parallel for
-for (int n = 0; n < (int)cloudQueue.size(); ++n) {
-    for (int i = 0; i < cloudQueue[n]->point_num; ++i) {
-        Eigen::Vector3f pt(cloudQueue[n]->points[i].x,cloudQueue[n]->points[i].y,cloudQueue[n]->points[i].z);
-        pcl::PointXYZI depth_pt;
-        depth_pt.x = pt(0);
-        depth_pt.y = pt(1);
-        depth_pt.z = pt(2);
-        depth_pt.intensity = cloudQueue[n]->points[i].reflectivity;
-        depthCloud->points.push_back(depth_pt);
-        Eigen::Vector3f livox_pt = transOffset * pt;
-        
-        cv::Mat X(4, 1, CV_64F);
-        X.at<double>(0, 0) = livox_pt(0);
-        X.at<double>(1, 0) = livox_pt(1);
-        X.at<double>(2, 0) = livox_pt(2);
-        X.at<double>(3, 0) = 1;
+    // ROS_WARN(">>>>1<<<<, %d\n",cloud_msg->point_num);
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+    #pragma omp parallel for num_threads(6)
+    for (size_t n = 0; n < cloudQueue.size(); ++n) {
+        for (size_t i = 0; i < cloudQueue[n]->point_num; ++i) {
+            if ((i % 3 == 0 && cloudQueue[n]->points[i].line < 6))
+            {
 
-        cv::Mat Y = intrisicMat * X;
-        cv::Point2f u_v;
-        u_v.x = Y.at<double>(0, 0) / Y.at<double>(2, 0);
-        u_v.y = Y.at<double>(1, 0) / Y.at<double>(2, 0);
-
-        if (pt(0) < 0 || u_v.x < 0 || u_v.y < 0 || u_v.x > cv_image.cols || u_v.y > cv_image.rows) {
-            continue;
-        }
-        
-
-        float dist = pointDistance(pt);
-        float r, g, b;
-        getColor(dist, 6, r, g, b);
-
-        // 临界区保护，防止对 colorCloud 进行并发操作
-        #pragma omp critical
-        {
-            pcl::PointXYZRGBNormal p;
-            p.x = pt(0);
-            p.y = pt(1);
-            p.z = pt(2);
-            p.r = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[0];
-            p.g = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[1];
-            p.b = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[2];
+            Eigen::Vector3f pt(cloudQueue[n]->points[i].x,cloudQueue[n]->points[i].y,cloudQueue[n]->points[i].z);
+            cam_pt = transOffset * pt;
             
-            colorCloud->points.push_back(p);
-            cv::circle(cv_image, u_v, 2, cv::Scalar(r, g, b), 5);
+            cv::Mat X(4, 1, CV_64F);
+            X.at<double>(0, 0) = cam_pt(0);
+            X.at<double>(1, 0) = cam_pt(1);
+            X.at<double>(2, 0) = cam_pt(2);
+            X.at<double>(3, 0) = 1;
+
+            cv::Mat Y = intrisicMat * X;
+            cv::Point2f u_v;
+            u_v.x = std::floor(Y.at<double>(0, 0) / Y.at<double>(2, 0));
+            u_v.y = std::floor(Y.at<double>(1, 0) / Y.at<double>(2, 0));
+
+            if (pt(0) < 0 || u_v.x < 0 || u_v.y < 0 || u_v.x > cv_image.cols || u_v.y > cv_image.rows)
+                continue;
+            
+            auto it = std::find(fea_pts.begin(), fea_pts.end(),u_v);
+            
+            if(it != fea_pts.end()){
+                #pragma omp critical
+                {
+                    pcl::PointXYZI fea_p;
+                    fea_p.x = pt(0);
+                    fea_p.y = pt(1);
+                    fea_p.z = pt(2);
+                    fea_p.intensity = 255;
+                    feaCloud->points.push_back(fea_p);
+                }
+            }
+        
+            float dist = pointDistance(pt);
+            float r, g, b;
+            getColor(dist, 100, r, g, b);
+
+            // 临界区保护，防止对 colorCloud 进行并发操作
+            #pragma omp critical
+            {
+                pcl::PointXYZI depth_pt;
+                depth_pt.x = pt(0);
+                depth_pt.y = pt(1);
+                depth_pt.z = pt(2);
+                depth_pt.intensity = cloudQueue[n]->points[i].reflectivity;
+                depthCloud->points.push_back(depth_pt);
+
+                pcl::PointXYZRGBNormal p;
+                p.x = pt(0);
+                p.y = pt(1);
+                p.z = pt(2);
+                p.r = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[0];
+                p.g = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[1];
+                p.b = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[2];
+                
+                colorCloud->points.push_back(p);
+                cv::circle(cv_image, u_v, 2, cv::Scalar(r, g, b), 3);
+            }
+
         }
+     }
     }
-}
-std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-std::chrono::duration<double> time_used_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t2-t1);
-std::cout<<"time_used : "<<time_used_1.count()*1000<<"ms"<<std::endl;
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time_used_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t2-t1);
+    std::cout<<"time_used : "<<time_used_1.count()*1000<<"ms"<<std::endl;
      
     cv_bridge::CvImage bridge;
     cv_bridge::CvImage fea_bridge;
@@ -595,7 +626,14 @@ std::cout<<"time_used : "<<time_used_1.count()*1000<<"ms"<<std::endl;
 
     colorCloud->width = colorCloud->points.size();
     colorCloud->height = 1;
-    ROS_INFO(">>> %d",colorCloud->width);
+    feaCloud->width = feaCloud->points.size();
+    feaCloud->height = 1;
+    printf(">>> Color cloud size : %d\n",colorCloud->width);
+    printf(">>> Fea cloud size : %d\n",feaCloud->width);
+
+    std_msgs::Float32 fea_size_msg;
+    fea_size_msg.data = feaCloud->width;
+    pubfeasize.publish(fea_size_msg);
     
     sensor_msgs::PointCloud2 color_msg, raw_msg, fea_msg;
     pcl::toROSMsg(*depthCloud, raw_msg);	
@@ -631,14 +669,15 @@ int main(int argc,char **argv)
     }
 
     // lidar_ = nh.subscribe("/velodyne_points",5,VelodyneCallback,ros::TransportHints().tcpNoDelay());
-    image_ = nh.subscribe<sensor_msgs::CompressedImage>("/camera/color/image_raw/compressed",1000,ImageCallback);
+    image_ = nh.subscribe<sensor_msgs::CompressedImage>("/camera/image_color/compressed",1000,ImageCallback);
     lidar_ = nh.subscribe("/livox/lidar",1000,LivoxCallback);
 
-    pub_depth_image =   nh.advertise<sensor_msgs::Image>("/fusion_image",1,true);
-    pub_fea_image =   nh.advertise<sensor_msgs::Image>("/fea_image",1,true);
-    pubcolorCloud = nh.advertise<sensor_msgs::PointCloud2>("/color_lidar", 1,true);
-    pubfullCloud = nh.advertise<sensor_msgs::PointCloud2>("/raw_lidar", 1,true);
-    pubfeaCloud = nh.advertise<sensor_msgs::PointCloud2>("/fea_lidar", 1,true);		
+    pub_depth_image  =  nh.advertise<sensor_msgs::Image>("/fusion_image",1,true);
+    pub_fea_image   =  nh.advertise<sensor_msgs::Image>("/fea_image",1,true);
+    pubcolorCloud  =  nh.advertise<sensor_msgs::PointCloud2>("/color_lidar", 1,true);
+    pubfullCloud  =  nh.advertise<sensor_msgs::PointCloud2>("/raw_lidar", 1,true);
+    pubfeaCloud  =  nh.advertise<sensor_msgs::PointCloud2>("/fea_lidar", 1,true);
+    pubfeasize  =  nh.advertise<std_msgs::Float32>("/fea_size", 1,true);		
 
     
     ros::spin();
