@@ -138,7 +138,7 @@ class ncnn_image
     
     ncnn_image() { 
         
-         net.opt.num_threads=4;
+         net.opt.num_threads=12;
          net.load_param("/home/hong/slam/lvio/src/ncnn_images/models/model.param");
          net.load_model("/home/hong/slam/lvio/src/ncnn_images/models/model.bin");
          
@@ -391,27 +391,27 @@ void CalibrationData()
 
 }
 
-void LivoxMsgToPcl(livox_ros_driver2::CustomMsgConstPtr &cloud_, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud_out)
-{
-    // auto msg_ = cloud_;
- #pragma omp parallel for num_threads(8)
-    for (size_t i = 0; i < cloud_->point_num; i++)
-    {
+// void LivoxMsgToPcl(livox_ros_driver2::CustomMsgConstPtr &cloud_, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud_out)
+// {
+//     // auto msg_ = cloud_;
+//  #pragma omp parallel for num_threads(8)
+//     for (size_t i = 0; i < cloud_->point_num; i++)
+//     {
   
-        pcl::PointXYZI pt;
-        pt.x = cloud_->points[i].x;
-        pt.y = cloud_->points[i].y;
-        pt.z = cloud_->points[i].z;
-        pt.intensity = cloud_->points[i].reflectivity;
-        // pt.line = msg_->points[i].line;
-        // pt.offset_time = msg_->points[i].offset_time;
-        cloud_out->push_back(pt);
-    }
+//         pcl::PointXYZI pt;
+//         pt.x = cloud_->points[i].x;
+//         pt.y = cloud_->points[i].y;
+//         pt.z = cloud_->points[i].z;
+//         pt.intensity = cloud_->points[i].reflectivity;
+//         // pt.line = msg_->points[i].line;
+//         // pt.offset_time = msg_->points[i].offset_time;
+//         cloud_out->push_back(pt);
+//     }
     
-    // ROS_INFO("Completed LIVOX Msg convert to Livox(pcl) points.\n");
+//     // ROS_INFO("Completed LIVOX Msg convert to Livox(pcl) points.\n");
     
-    return;
-}
+//     return;
+// }
 
 float pointDistance(Eigen::Vector3f p)
 {
@@ -505,7 +505,7 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     cloudQueue.push_back(cloud_msg);
     timeQueue.push_back(timeScanCur); 
  
-    if((timeScanCur - timeQueue.front()).toSec() > 0.2)
+    if((timeScanCur - timeQueue.front()).toSec() > 0.05)
     {  
         timeQueue.pop_front();
         cloudQueue.pop_front();
@@ -523,9 +523,9 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
     // show_image = cv::Mat::zeros(720, 1280, CV_8UC3);
     ros2cv(image_ros,show_image,intrisic,distCoeffs,false);
     // std::cout << show_image.size() << std::endl;
-    if(show_image.empty()){
+    if(show_image.empty())
         return;
-    }
+    
 
     fea_image = show_image.clone();
     cv_image = show_image.clone();
@@ -541,68 +541,69 @@ void LivoxCallback(const livox_ros_driver2::CustomMsgConstPtr& cloud_msg)
   
     // ROS_WARN(">>>>1<<<<, %d\n",cloud_msg->point_num);
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-    #pragma omp parallel for num_threads(6)
+    
     for (size_t n = 0; n < cloudQueue.size(); ++n) {
+    #pragma omp parallel for num_threads(12)
         for (size_t i = 0; i < cloudQueue[n]->point_num; ++i) {
             if ((i % 3 == 0 && cloudQueue[n]->points[i].line < 6))
             {
 
-            Eigen::Vector3f pt(cloudQueue[n]->points[i].x,cloudQueue[n]->points[i].y,cloudQueue[n]->points[i].z);
-            cam_pt = transOffset * pt;
-            
-            cv::Mat X(4, 1, CV_64F);
-            X.at<double>(0, 0) = cam_pt(0);
-            X.at<double>(1, 0) = cam_pt(1);
-            X.at<double>(2, 0) = cam_pt(2);
-            X.at<double>(3, 0) = 1;
+                Eigen::Vector3f pt(cloudQueue[n]->points[i].x,cloudQueue[n]->points[i].y,cloudQueue[n]->points[i].z);
+                cam_pt = transOffset * pt;
+                
+                cv::Mat X(4, 1, CV_64F);
+                X.at<double>(0, 0) = cam_pt(0);
+                X.at<double>(1, 0) = cam_pt(1);
+                X.at<double>(2, 0) = cam_pt(2);
+                X.at<double>(3, 0) = 1;
 
-            cv::Mat Y = intrisicMat * X;
-            cv::Point2f u_v;
-            u_v.x = std::floor(Y.at<double>(0, 0) / Y.at<double>(2, 0));
-            u_v.y = std::floor(Y.at<double>(1, 0) / Y.at<double>(2, 0));
+                cv::Mat Y = intrisicMat * X;
+                cv::Point2f u_v;
+                u_v.x = std::round(Y.at<double>(0, 0) / Y.at<double>(2, 0));
+                u_v.y = std::round(Y.at<double>(1, 0) / Y.at<double>(2, 0));
 
-            if (pt(0) < 0 || u_v.x < 0 || u_v.y < 0 || u_v.x > cv_image.cols || u_v.y > cv_image.rows)
-                continue;
+                if (pt(0) < 0 || u_v.x < 0 || u_v.y < 0 || u_v.x > cv_image.cols || u_v.y > cv_image.rows)
+                    continue;
+                
+                auto it = std::find(fea_pts.begin(), fea_pts.end(),u_v);
+                
+                if(it != fea_pts.end()){
+                    #pragma omp critical
+                    {
+                        pcl::PointXYZI fea_p;
+                        fea_p.x = pt(0);
+                        fea_p.y = pt(1);
+                        fea_p.z = pt(2);
+                        fea_p.intensity = 255;
+                        feaCloud->points.push_back(fea_p);
+                    }
+                }
             
-            auto it = std::find(fea_pts.begin(), fea_pts.end(),u_v);
-            
-            if(it != fea_pts.end()){
+                float dist = pointDistance(pt);
+                float r, g, b;
+                getColor(dist, 100, r, g, b);
+
+                // 临界区保护，防止对 colorCloud 进行并发操作
                 #pragma omp critical
                 {
-                    pcl::PointXYZI fea_p;
-                    fea_p.x = pt(0);
-                    fea_p.y = pt(1);
-                    fea_p.z = pt(2);
-                    fea_p.intensity = 255;
-                    feaCloud->points.push_back(fea_p);
+                    pcl::PointXYZI depth_pt;
+                    depth_pt.x = pt(0);
+                    depth_pt.y = pt(1);
+                    depth_pt.z = pt(2);
+                    depth_pt.intensity = cloudQueue[n]->points[i].reflectivity;
+                    depthCloud->points.push_back(depth_pt);
+
+                    pcl::PointXYZRGBNormal p;
+                    p.x = pt(0);
+                    p.y = pt(1);
+                    p.z = pt(2);
+                    p.r = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[0];
+                    p.g = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[1];
+                    p.b = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[2];
+                    
+                    colorCloud->points.push_back(p);
+                    cv::circle(cv_image, u_v, 2, cv::Scalar(r, g, b), 3);
                 }
-            }
-        
-            float dist = pointDistance(pt);
-            float r, g, b;
-            getColor(dist, 100, r, g, b);
-
-            // 临界区保护，防止对 colorCloud 进行并发操作
-            #pragma omp critical
-            {
-                pcl::PointXYZI depth_pt;
-                depth_pt.x = pt(0);
-                depth_pt.y = pt(1);
-                depth_pt.z = pt(2);
-                depth_pt.intensity = cloudQueue[n]->points[i].reflectivity;
-                depthCloud->points.push_back(depth_pt);
-
-                pcl::PointXYZRGBNormal p;
-                p.x = pt(0);
-                p.y = pt(1);
-                p.z = pt(2);
-                p.r = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[0];
-                p.g = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[1];
-                p.b = show_image.at<cv::Vec3b>(u_v.y, u_v.x)[2];
-                
-                colorCloud->points.push_back(p);
-                cv::circle(cv_image, u_v, 2, cv::Scalar(r, g, b), 3);
-            }
 
         }
      }
